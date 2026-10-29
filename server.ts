@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -19,6 +20,12 @@ const PORT = Number(process.env.PORT) || 3000;
 // 🛡️ SECURITY HEADERS & SERVER HARDENING
 // -------------------------------------------------------------
 app.disable('x-powered-by');
+
+// Client IP for rate limiting and login lockout comes from req.ip, which only honours
+// X-Forwarded-For from trusted proxies. Default 'loopback' (local dev and the test harness);
+// behind Cloud Run or another single proxy set TRUST_PROXY=1.
+const TRUST_PROXY = process.env.TRUST_PROXY ?? 'loopback';
+app.set('trust proxy', /^\d+$/.test(TRUST_PROXY) ? Number(TRUST_PROXY) : TRUST_PROXY);
 
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -264,7 +271,7 @@ const loginAttemptMap = new Map<string, LoginAttemptRecord>();
 
 app.post('/api/auth/login', (req: Request, res: Response) => {
   try {
-    const rawIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || req.socket.remoteAddress || '127.0.0.1';
+    const rawIp = req.ip || req.socket.remoteAddress || 'unknown';
     const now = Date.now();
     const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes lockout
     const MAX_FAILED_ATTEMPTS = 5;
@@ -351,10 +358,21 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
     const cleanEmail = email.trim();
     const cleanPassword = password;
 
-    const VALID_ADMIN_EMAIL = 'admin@ilm-platform.com';
-    const VALID_ADMIN_PASS = 'ILM_Secure_2026_Key!';
+    // Credentials come from the environment only (never from source code).
+    const VALID_ADMIN_EMAIL = (process.env.ADMIN_EMAIL || '').trim();
+    const VALID_ADMIN_PASS = process.env.ADMIN_PASSWORD || '';
+    if (!VALID_ADMIN_EMAIL || !VALID_ADMIN_PASS) {
+      return res.status(503).json({
+        error: 'Service Unavailable',
+        message: 'Admin login is not configured on this server (set ADMIN_EMAIL and ADMIN_PASSWORD).'
+      });
+    }
 
-    const isMatch = (cleanEmail === VALID_ADMIN_EMAIL && cleanPassword === VALID_ADMIN_PASS);
+    // Constant-time comparison of fixed-length digests (no early exit on the first differing character).
+    const digest = (v: string) => crypto.createHash('sha256').update(v, 'utf8').digest();
+    const emailOk = crypto.timingSafeEqual(digest(cleanEmail.toLowerCase()), digest(VALID_ADMIN_EMAIL.toLowerCase()));
+    const passOk = crypto.timingSafeEqual(digest(cleanPassword), digest(VALID_ADMIN_PASS));
+    const isMatch = emailOk && passOk;
 
     if (!isMatch) {
       record.failedCount += 1;
@@ -375,7 +393,7 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
     return res.status(200).json({
       success: true,
       message: 'تم تسجيل الدخول بنجاح',
-      token: 'jwt_secure_session_token_example'
+      token: crypto.randomBytes(32).toString('hex')
     });
 
   } catch (err: any) {
