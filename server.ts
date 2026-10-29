@@ -54,6 +54,16 @@ const ALLOWED_TRACKS = new Set(['muslim', 'new_muslim', 'non_muslim', 'daiyah'])
 // IN-MEMORY RATE LIMITER & SECURE HARNESS VERIFICATION
 // -------------------------------------------------------------
 const requestCounts = new Map<string, { count: number; resetTime: number }>();
+const dailyCounts = new Map<string, { count: number; resetTime: number }>();
+const DAY_MS = 24 * 60 * 60 * 1000;
+const AI_DAILY_LIMIT = Math.max(1, Number(process.env.AI_DAILY_LIMIT) || 150); // AI requests per IP per day
+
+// Drop expired entries every 10 minutes so the in-memory maps do not grow without bound.
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of requestCounts) if (now > v.resetTime) requestCounts.delete(k);
+  for (const [k, v] of dailyCounts) if (now > v.resetTime) dailyCounts.delete(k);
+}, 10 * 60 * 1000).unref();
 
 const rateLimiterMiddleware = (req: Request, res: Response, next: express.NextFunction) => {
   // Security fix: Restrict test-harness bypass exclusively to local loopback addresses (127.0.0.1 / ::1)
@@ -68,7 +78,23 @@ const rateLimiterMiddleware = (req: Request, res: Response, next: express.NextFu
   const ip = clientIp || '127.0.0.1';
   const now = Date.now();
   const windowMs = 10000; // 10 seconds
-  const maxRequests = 20; // 20 requests per 10 seconds per IP
+  const maxRequests = 10; // 10 requests per 10 seconds per IP
+
+  // Daily cap per IP so the public AI endpoints cannot drain the Gemini quota.
+  const day = dailyCounts.get(ip) || { count: 0, resetTime: now + DAY_MS };
+  if (now > day.resetTime) {
+    day.count = 0;
+    day.resetTime = now + DAY_MS;
+  }
+  day.count += 1;
+  dailyCounts.set(ip, day);
+  if (day.count > AI_DAILY_LIMIT) {
+    return res.status(429).json({
+      error: 'Daily Limit Reached',
+      message: '⚠️ وصلت للحد اليومي من طلبات الذكاء الاصطناعي. حاول مرة أخرى غدًا.',
+      retryAfterSeconds: Math.ceil((day.resetTime - now) / 1000),
+    });
+  }
 
   const record = requestCounts.get(ip) || { count: 0, resetTime: now + windowMs };
 
@@ -1160,86 +1186,6 @@ ${conversationHistory}
   } catch (error: any) {
     console.error('Error in interactive-tutor endpoint:', error);
     res.status(500).json({ error: 'عذراً، حدث خطأ أثناء التفاعل مع المعلم. يرجى المحاولة لاحقاً.' });
-  }
-});
-
-// API: Lesson Tutor Agent (Direct dynamic conversational responses to all user questions)
-app.post('/api/ai/lesson-tutor-agent', async (req: Request, res: Response) => {
-  try {
-    const {
-      stageId = '',
-      trackId = 'new_muslim',
-      userName = 'المتعلم',
-      userAge = '',
-      userMessage = '',
-      currentCapsuleIndex = 0,
-      stageTitle = '',
-      stageConcept = '',
-      scriptures = [],
-      conversationHistory = [],
-      preferences = {}
-    } = req.body;
-
-    const systemInstruction = buildSystemInstruction(trackId, userName, userAge, preferences);
-    const agePersona = getAgeAdaptiveGuidelines(userAge, userName);
-
-    const prompt = `
-بيانات المحطة والمحادثة:
-- المحطة التعليمية الحالية: «${stageTitle}» (المسار: ${trackId})
-- ملخص مفهوم المحطة: ${stageConcept}
-
-سجل الحوار السابق:
-${conversationHistory.map((m: any) => `${m.role === 'user' ? 'المتعلم' : 'المعلم الذكي'}: ${m.text}`).join('\n')}
-
-رسالة أو سؤال المتعلم الأخير:
-"${userMessage}"
-
-المهمة والتعليمات:
-1. أجب عن سؤال أو تعليق المتعلم بدقة ومباشرة وفق معايير System Instructions أعلاه (طول الإجابة والمصادر المفضلة).
-2. تنبيه للحقائق القرآنية: القرآن الكريم يضم 114 سورة؛ فإذا طلب سورة فوق 114 (مثل سورة 200)، وضح له بلطف أن سور القرآن 114 سورة واقترح عليه ما يقصد بدقة.
-3. التوثيق: استند إلى مجمع الملك فهد، والدرر السنية، والمراجع المعتمدة.
-
-أخرج النتيجة بصيغة JSON فقط:
-{
-  "reply": "نص الرد الحواري المباشر للمتعلم مع السؤال الختامي",
-  "sourceNote": "المصدر المعتمد (مثل: مجمع الملك فهد لطباعة المصحف الشريف / الدرر السنية)",
-  "isGuardrailTriggered": false
-}
-`;
-
-    const reply = await callGeminiWithFallback(prompt, {
-      systemInstruction,
-      responseMimeType: 'application/json',
-      temperature: 0.3
-    });
-
-    if (reply) {
-      try {
-        const parsed = JSON.parse(reply);
-        return res.json(parsed);
-      } catch (e) {
-        console.warn('JSON parse error on lesson tutor reply');
-      }
-    }
-
-    // Dynamic smart fallback if Gemini quota limit reached
-    let fallbackText = '';
-    const cleanMsg = (userMessage || '').trim();
-    if (cleanMsg.includes('200') && cleanMsg.includes('سورة')) {
-      fallbackText = `وعليكم السلام ورحمة الله وبركاته يا ${agePersona.titleCall}! القرآن الكريم يحتوي على 114 سورة مباركة تبدأ بالفاتحة وتختم بالناس. لعلك قصدت الآية رقم 200 من سورة آل عمران: ﴿يَا أَيُّهَا الَّذِينَ آمَنُوا اصْبِرُوا وَصَابِرُوا وَرَابِطُوا وَاتَّقُوا اللَّهَ لَعَلَّكُمْ تُفْلِحُونَ﴾؟ ما رأيك أن نتأمل في معناها معاً؟`;
-    } else {
-      fallbackText = `وعليكم السلام ورحمة الله وبركاته يا ${agePersona.titleCall}! أهلاً بك وسعدت بسؤالك: "${cleanMsg}". في سياق درس «${stageTitle || 'العلوم الإسلامية'}»، نبني الفهم خطوة بخطوة بالدليل الشرعي الصحيح من القرآن ومجمع الملك فهد. هل تحب أن نتعمق في هذا المعنى؟`;
-    }
-
-    return res.json({
-      reply: fallbackText,
-      sourceNote: 'مصحف مجمع الملك فهد لطباعة المصحف الشريف',
-      isGuardrailTriggered: false
-    });
-
-  } catch (error: any) {
-    console.error('Error in lesson-tutor-agent endpoint:', error);
-    res.status(500).json({ error: 'عذراً، حدث خطأ أثناء معالجة السؤال. يرجى المحاولة لاحقاً.' });
   }
 });
 
