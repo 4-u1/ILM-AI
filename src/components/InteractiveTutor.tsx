@@ -39,6 +39,8 @@ export interface InteractiveTutorProps {
   onOpenFatwaTicket?: (userQuestion?: string, category?: any, ticketCode?: string) => void;
   embedded?: boolean;
   initialStageId?: string;
+  // Prefilled into the input box (e.g. from a shared teaser link); user decides to send
+  initialQuestion?: string;
   onCompleteStage?: (stageId: string) => void;
   // Dynamic Learner Context from LessonView / App Context
   learnerName?: string;
@@ -73,6 +75,7 @@ export const InteractiveTutor: React.FC<InteractiveTutorProps> = ({
   onOpenFatwaTicket,
   embedded = false,
   initialStageId,
+  initialQuestion,
   onCompleteStage,
   learnerName,
   learnerAge,
@@ -194,7 +197,7 @@ export const InteractiveTutor: React.FC<InteractiveTutorProps> = ({
     return `هل هذا الأصل جلي ومستقر لديك ${p.titleCall}؟`;
   };
 
-  const [inputVal, setInputVal] = useState('');
+  const [inputVal, setInputVal] = useState(initialQuestion || '');
   const [isTyping, setIsTyping] = useState(false);
   const [isAudioEnabled, setIsAudioEnabled] = useState(false);
   const [isListening, setIsListening] = useState(false);

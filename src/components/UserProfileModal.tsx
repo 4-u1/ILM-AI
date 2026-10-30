@@ -17,8 +17,10 @@ import {
   ArrowRight,
   TrendingUp,
   Clock,
-  ExternalLink
+  ExternalLink,
+  Globe
 } from 'lucide-react';
+import { LanguageDropdown } from './LanguageDropdown';
 import { Language, TrackId } from '../types';
 import { 
   getStoredXP, 
@@ -38,6 +40,7 @@ interface UserProfileModalProps {
   selectedTrack: TrackId | null;
   onNavigateToAchievements?: () => void;
   onNavigateToCertificate?: () => void;
+  onSelectLanguage?: (lang: Language) => void;
 }
 
 const AVATARS = ['🌿', '📖', '🕌', '🌟', '🧭', '🕊️', '📜', '🛡️', '🌙', '🌴'];
@@ -50,6 +53,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   selectedTrack,
   onNavigateToAchievements,
   onNavigateToCertificate,
+  onSelectLanguage,
 }) => {
   const isAr = language === 'ar';
   const isUr = language === 'ur';
@@ -169,6 +173,26 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
         {/* Modal Body */}
         <div className="p-5 sm:p-6 space-y-5">
+
+          {/* Language setting — explicit, labelled place to change the platform language */}
+          {onSelectLanguage && (
+            <div className="flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center">
+                  <Globe className="w-4 h-4 text-amber-700" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-slate-900">
+                    {isAr ? 'لغة المنصة' : isUr ? 'پلیٹ فارم کی زبان' : 'Platform language'}
+                  </div>
+                  <div className="text-[10px] text-slate-500">
+                    {isAr ? 'يمكنك تغييرها أيضاً من أيقونة 🌐 أعلى الصفحة' : 'Also available from the 🌐 icon at the top'}
+                  </div>
+                </div>
+              </div>
+              <LanguageDropdown language={language} onSelectLanguage={onSelectLanguage} variant="navbar" />
+            </div>
+          )}
           
           {/* Edit Profile Form */}
           {isEditing ? (

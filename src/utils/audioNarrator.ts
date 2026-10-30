@@ -1,5 +1,5 @@
 export interface NarratorControls {
-  speak: (text: string, onEnd?: () => void) => void;
+  speak: (text: string, onEnd?: () => void, lang?: string) => void;
   pause: () => void;
   resume: () => void;
   stop: () => void;
@@ -43,7 +43,7 @@ class AudioNarratorManager implements NarratorControls {
     return this.paused;
   }
 
-  public speak(text: string, onEnd?: () => void) {
+  public speak(text: string, onEnd?: () => void, lang: string = 'ar') {
     if (!this.synth) return;
     this.stop();
 
@@ -58,13 +58,17 @@ class AudioNarratorManager implements NarratorControls {
     this.currentUtterance = new SpeechSynthesisUtterance(cleanText);
     this.currentUtterance.rate = this.rate;
 
-    // Try to find an Arabic voice (ar-SA preferred)
+    // Pick a voice matching the requested language (Arabic ar-SA by default)
+    const LOCALES: Record<string, string> = {
+      ar: 'ar-SA', en: 'en-US', ur: 'ur-PK', fr: 'fr-FR', es: 'es-ES', id: 'id-ID',
+    };
+    const base = (lang || 'ar').slice(0, 2);
+    const locale = LOCALES[base] || lang;
     const voices = this.synth.getVoices();
-    const arabicVoice = voices.find((v) => v.lang === 'ar-SA' || v.lang.startsWith('ar'));
-    if (arabicVoice) {
-      this.currentUtterance.voice = arabicVoice;
-    } else {
-      this.currentUtterance.lang = 'ar-SA';
+    const matchedVoice = voices.find((v) => v.lang === locale) || voices.find((v) => v.lang.startsWith(base));
+    this.currentUtterance.lang = locale;
+    if (matchedVoice) {
+      this.currentUtterance.voice = matchedVoice;
     }
 
     this.currentUtterance.onstart = () => {
