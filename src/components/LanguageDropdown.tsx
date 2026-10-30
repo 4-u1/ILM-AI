@@ -70,14 +70,16 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
             variant === 'navbar'
               ? 'px-3 py-1.5 bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-800 shadow-2xs text-xs font-semibold'
               : variant === 'compact'
-              ? 'px-2 py-1 bg-white hover:bg-slate-50 border-slate-200 text-slate-800 text-[11px] font-semibold'
+              ? 'px-2 py-1 bg-amber-50 hover:bg-amber-100 border-amber-300 text-slate-800 text-[11px] font-semibold'
               : 'flex-col items-center justify-center py-1 px-2 text-slate-500 hover:text-slate-900'
           } ${isOpen ? 'ring-2 ring-amber-500/30 border-amber-400 bg-amber-50/30' : ''}`}
           aria-haspopup="true"
           aria-expanded={isOpen}
+          aria-label={language === 'ar' ? 'تغيير اللغة' : 'Change language'}
+          title={language === 'ar' ? 'تغيير اللغة' : 'Change language'}
         >
           <div className="flex items-center gap-1 sm:gap-1.5">
-            <Globe className={`${variant === 'compact' ? 'hidden sm:inline w-3.5 h-3.5' : 'w-3.5 h-3.5'} text-amber-700`} />
+            <Globe className="w-3.5 h-3.5 text-amber-700" />
             <span className="text-sm leading-none">{currentLang.flag}</span>
             <span className="font-bold tracking-tight text-slate-900 text-xs">
               {variant === 'compact' ? (
@@ -151,8 +153,7 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
           </div>
 
           <div className="px-3 py-1.5 border-t border-slate-100 bg-slate-50/50 text-[10px] text-slate-500 flex items-center justify-between">
-            <span>6 لغات عالمية معتمدة</span>
-            <span className="text-emerald-700 font-bold">100% موثقة</span>
+            <span>{language === 'ar' ? `${SUPPORTED_LANGUAGES.length} لغات` : `${SUPPORTED_LANGUAGES.length} languages`}</span>
           </div>
         </div>
       )}

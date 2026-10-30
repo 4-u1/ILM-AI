@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { audioNarrator } from '../utils/audioNarrator';
 import { 
   CheckCircle2, 
   XCircle, 
@@ -11,7 +12,9 @@ import {
   HelpCircle,
   BookOpen,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  Volume2,
+  Square
 } from 'lucide-react';
 import { QuizQuestion, Language, SourceReference, LessonStage } from '../types';
 
@@ -75,6 +78,51 @@ export const InteractiveQuiz: React.FC<InteractiveQuizProps> = ({
 
   const currentQ = questions[currentIndex];
   const questionCount = questions.length;
+
+  // Read-aloud (question + options, or the feedback explanation)
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  // Displayed quiz text is Arabic in Arabic mode, English otherwise
+  const speechLang = isAr ? 'ar' : 'en';
+  const letterLabels = isAr ? ['أ', 'ب', 'ج', 'د'] : ['A', 'B', 'C', 'D'];
+
+  const stopSpeaking = () => {
+    audioNarrator.stop();
+    setIsSpeaking(false);
+  };
+
+  const speak = (text: string) => {
+    if (isSpeaking) {
+      stopSpeaking();
+      return;
+    }
+    setIsSpeaking(true);
+    audioNarrator.speak(text, () => setIsSpeaking(false), speechLang);
+  };
+
+  const readQuestionAndOptions = () => {
+    const qText = isAr ? currentQ.question : (currentQ.questionEn || currentQ.question);
+    const opts = currentQ.options.map((optAr, idx) => {
+      const t = isAr ? optAr : (currentQ.optionsEn?.[idx] || optAr);
+      return `${letterLabels[idx] || idx + 1}: ${t}`;
+    });
+    speak([qText, ...opts].join('. '));
+  };
+
+  const readExplanation = () => {
+    const correct = selectedOption === currentQ.correctIndex;
+    const verdict = isAr
+      ? (correct ? 'إجابة صحيحة.' : 'إجابة غير صحيحة.')
+      : (correct ? 'Correct.' : 'Not quite.');
+    const expl = isAr ? currentQ.explanation : (currentQ.explanationEn || currentQ.explanation);
+    speak(`${verdict} ${expl}`);
+  };
+
+  // Stop reading when moving between questions or leaving the quiz
+  useEffect(() => {
+    stopSpeaking();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex, isAnswerSubmitted, isFinished]);
+  useEffect(() => () => audioNarrator.stop(), []);
 
   const handleSelectOption = (idx: number) => {
     if (isAnswerSubmitted) return; // Locked once submitted
@@ -183,9 +231,27 @@ export const InteractiveQuiz: React.FC<InteractiveQuizProps> = ({
               <HelpCircle className="w-4 h-4 text-amber-600" />
               <span>{isAr ? `السؤال ${currentIndex + 1} من ${questionCount}:` : `Question ${currentIndex + 1} of ${questionCount}:`}</span>
             </span>
-            <h4 className="text-base sm:text-lg font-bold text-slate-900 leading-relaxed font-serif">
-              {isAr ? currentQ.question : (currentQ.questionEn || currentQ.question)}
-            </h4>
+            <div className="flex items-start justify-between gap-3">
+              <h4 className="text-base sm:text-lg font-bold text-slate-900 leading-relaxed font-serif">
+                {isAr ? currentQ.question : (currentQ.questionEn || currentQ.question)}
+              </h4>
+              {!isAnswerSubmitted && (
+                <button
+                  type="button"
+                  onClick={readQuestionAndOptions}
+                  aria-pressed={isSpeaking}
+                  title={isAr ? 'استمع للسؤال والخيارات' : 'Listen to the question and options'}
+                  className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition cursor-pointer ${
+                    isSpeaking
+                      ? 'bg-amber-500 border-amber-500 text-white'
+                      : 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100'
+                  }`}
+                >
+                  {isSpeaking ? <Square className="w-3.5 h-3.5" /> : <Volume2 className="w-4 h-4" />}
+                  <span>{isSpeaking ? (isAr ? 'إيقاف' : 'Stop') : (isAr ? 'استمع' : 'Listen')}</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Multiple Choice Options List */}
@@ -272,6 +338,17 @@ export const InteractiveQuiz: React.FC<InteractiveQuizProps> = ({
                     </>
                   )}
                 </div>
+
+                <button
+                  type="button"
+                  onClick={readExplanation}
+                  aria-pressed={isSpeaking}
+                  title={isAr ? 'استمع للتوضيح' : 'Listen to the explanation'}
+                  className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-300 bg-white/80 hover:bg-white text-[11px] font-bold text-slate-700 cursor-pointer"
+                >
+                  {isSpeaking ? <Square className="w-3 h-3" /> : <Volume2 className="w-3.5 h-3.5" />}
+                  <span>{isSpeaking ? (isAr ? 'إيقاف' : 'Stop') : (isAr ? 'استمع' : 'Listen')}</span>
+                </button>
 
                 {currentQ.source && (
                   <button

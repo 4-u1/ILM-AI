@@ -29,6 +29,9 @@ import { Onboarding } from './components/Onboarding';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { StudyReminderNotification } from './components/StudyReminderNotification';
 import { AmbassadorsHub } from './components/AmbassadorsHub';
+import { TeaserInviteModal } from './components/TeaserInviteModal';
+import { TEASER_IDS, findTeaser, Teaser } from './data/teasersData';
+import { captureIncomingReferral } from './utils/referral';
 import { WhisperingCopilot } from './components/WhisperingCopilot';
 import { ThirtyDayJourney } from './components/ThirtyDayJourney';
 import { OfflineManager } from './components/OfflineManager';
@@ -63,6 +66,15 @@ export default function App() {
   }, [currentTab]);
 
   const [selectedTrack, setSelectedTrack] = useState<TrackId | null>('new_muslim');
+
+  // Incoming invitation link (?ref=...&teaser=...)
+  const [incomingTeaser, setIncomingTeaser] = useState<Teaser | null>(null);
+  const [tutorInitialQuestion, setTutorInitialQuestion] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    const incoming = captureIncomingReferral(TEASER_IDS);
+    const teaser = findTeaser(incoming?.teaserId);
+    if (teaser) setIncomingTeaser(teaser);
+  }, []);
   const [activeStage, setActiveStage] = useState<LessonStage | null>(null);
 
   // App entrance Splash Screen loader state
@@ -427,6 +439,7 @@ export default function App() {
                 <InteractiveTutor
                   language={language}
                   selectedTrack={selectedTrack}
+                  initialQuestion={tutorInitialQuestion}
                   onBackToMap={() => {
                     setCurrentTab('journey');
                   }}
@@ -597,6 +610,20 @@ export default function App() {
       </main>
 
       {/* Shahada Modal for non-Muslim inquirers */}
+      {incomingTeaser && !appSplashLoading && (
+        <TeaserInviteModal
+          teaser={incomingTeaser}
+          language={language}
+          onClose={() => setIncomingTeaser(null)}
+          onAskTutor={(question) => {
+            setIncomingTeaser(null);
+            setTutorInitialQuestion(question);
+            setSelectedTrack('non_muslim');
+            setCurrentTab('tutor');
+          }}
+        />
+      )}
+
       <ShahadaModal
         isOpen={isShahadaOpen}
         onClose={() => setIsShahadaOpen(false)}
@@ -736,6 +763,7 @@ export default function App() {
         selectedTrack={selectedTrack}
         onNavigateToAchievements={() => setCurrentTab('achievements')}
         onNavigateToCertificate={() => setCurrentTab('certificate')}
+        onSelectLanguage={setLanguage}
       />
 
     </div>

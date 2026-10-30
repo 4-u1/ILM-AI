@@ -1,3 +1,4 @@
+import { hasSharedAtLeastOnce } from '../utils/referral';
 import { AchievementBadge } from '../types';
 
 export const ACHIEVEMENTS_REGISTRY: AchievementBadge[] = [
@@ -257,8 +258,7 @@ export const ACHIEVEMENTS_REGISTRY: AchievementBadge[] = [
     conditionDescriptionUr: 'دعوتی لنک شیئر کریں اور سفیر بنیں',
     isUnlocked: () => {
       try {
-        const stats = localStorage.getItem('eilm_ambassador_stats');
-        return !!stats;
+        return hasSharedAtLeastOnce();
       } catch {
         return false;
       }

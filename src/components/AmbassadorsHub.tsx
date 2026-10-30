@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Language, AmbassadorStats, AmbassadorRankId } from '../types';
+import { Language } from '../types';
 import { AMBASSADOR_RANKS } from '../data/innovationsData';
+import { TEASERS } from '../data/teasersData';
+import { getAmbassadorProfile, recordShare, buildInviteUrl, AmbassadorProfile } from '../utils/referral';
 import { 
   Share2, 
   Copy, 
@@ -18,7 +20,9 @@ import {
   Compass,
   ArrowRight,
   ArrowLeft,
-  QrCode
+  QrCode,
+  Info,
+  HelpCircle
 } from 'lucide-react';
 
 interface AmbassadorsHubProps {
@@ -39,39 +43,18 @@ export const AmbassadorsHub: React.FC<AmbassadorsHubProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedKit, setCopiedKit] = useState<string | null>(null);
 
-  // Initialize or fetch persistent ambassador stats
-  const [stats, setStats] = useState<AmbassadorStats>(() => {
-    try {
-      const saved = localStorage.getItem('eilm_ambassador_stats');
-      if (saved) return JSON.parse(saved);
-      return {
-        referralCode: 'nex-dawah-2026',
-        totalVisits: 18,
-        totalQuestionsAsked: 14,
-        totalCapsulesRead: 32,
-        totalShahadasWitnessed: 1,
-        sharedKitsCount: 6,
-        currentRankId: 'impact_builder',
-      };
-    } catch {
-      return {
-        referralCode: 'nex-dawah-2026',
-        totalVisits: 18,
-        totalQuestionsAsked: 14,
-        totalCapsulesRead: 32,
-        totalShahadasWitnessed: 1,
-        sharedKitsCount: 6,
-        currentRankId: 'impact_builder',
-      };
-    }
-  });
+  // Per-device ambassador profile: a unique referral code + how many times this device shared.
+  // Visits / questions / lessons from the link need a backend and are NOT faked here.
+  const [profile, setProfile] = useState<AmbassadorProfile>(() => getAmbassadorProfile());
+  const referralUrl = buildInviteUrl(profile.referralCode);
+  const markShared = () => setProfile(recordShare());
 
-  const referralUrl = `https://weilmai.ai.studio/?ref=${stats.referralCode}`;
-
-  const currentRank = AMBASSADOR_RANKS.find((r) => r.id === stats.currentRankId) || AMBASSADOR_RANKS[0];
+  // Until server-side tracking exists, everyone starts at the first rank
+  const currentRank = AMBASSADOR_RANKS[0];
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(referralUrl);
+    markShared();
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
   };
@@ -102,13 +85,7 @@ export const AmbassadorsHub: React.FC<AmbassadorsHubProps> = ({
   const handleCopyKit = (id: string, text: string) => {
     navigator.clipboard.writeText(text);
     setCopiedKit(id);
-    const updated = { ...stats, sharedKitsCount: stats.sharedKitsCount + 1 };
-    setStats(updated);
-    try {
-      localStorage.setItem('eilm_ambassador_stats', JSON.stringify(updated));
-    } catch (e) {
-      console.error(e);
-    }
+    markShared();
     setTimeout(() => setCopiedKit(null), 2500);
   };
 
@@ -143,8 +120,8 @@ export const AmbassadorsHub: React.FC<AmbassadorsHubProps> = ({
           </h1>
           <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
             {isAr
-              ? 'حوّل هاتفك إلى مركز دعوي ذكي. شارك رابطك الدعوي التتبعي المخصص، وتتبع أثرك بالأرقام الحقيقية في هداية القلوب وتعليم المسلمين الجدد بخصوصية وأمان تامين.'
-              : 'Turn your device into a smart digital outreach post. Share your unique referral link and witness real-time verified engagement without violating anyone\'s privacy.'}
+              ? 'حوّل هاتفك إلى مركز دعوي ذكي. شارك رابطك الدعوي الخاص والأسئلة التشويقية، وساهم في التعريف بالإسلام وتعليم المسلمين الجدد.'
+              : 'Turn your device into a digital outreach post. Share your personal invite link and teaser questions to help people discover Islam.'}
           </p>
 
           {/* Referral Link Box */}
@@ -168,50 +145,45 @@ export const AmbassadorsHub: React.FC<AmbassadorsHubProps> = ({
         </div>
       </div>
 
-      {/* Live Impact Dashboard (KPIs) */}
+      {/* Impact Dashboard (KPIs) — honest: only what this device knows */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg sm:text-xl font-bold text-slate-900 flex items-center gap-2">
             <Flame className="w-5 h-5 text-amber-500" />
-            <span>{isAr ? 'لوحة أثرك الدعوي الحي' : 'Live Outreach Impact Dashboard'}</span>
+            <span>{isAr ? 'لوحة أثرك الدعوي' : 'Your Outreach Impact'}</span>
           </h2>
-          <span className="text-xs text-slate-500 font-medium">
-            {isAr ? 'محدثة تلقائياً وفق الاستخدام' : 'Synced live'}
-          </span>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
-            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center mb-2">
-              <Users className="w-4 h-4" />
-            </div>
-            <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{stats.totalVisits}</div>
-            <div className="text-xs text-slate-500 font-medium">{isAr ? 'إجمالي الزيارات عبر رابطك' : 'Total Link Visits'}</div>
-          </div>
-
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
-            <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center mb-2">
-              <MessageSquare className="w-4 h-4" />
-            </div>
-            <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{stats.totalQuestionsAsked}</div>
-            <div className="text-xs text-slate-500 font-medium">{isAr ? 'استفسارات حوارية أجيبت' : 'Inquiries Answered'}</div>
-          </div>
-
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center mb-2">
-              <BookOpen className="w-4 h-4" />
-            </div>
-            <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{stats.totalCapsulesRead}</div>
-            <div className="text-xs text-slate-500 font-medium">{isAr ? 'كبسولة علمية تمت مدارستها' : 'Capsules Completed'}</div>
-          </div>
-
           <div className="bg-white p-4 sm:p-5 rounded-2xl border border-emerald-200 bg-emerald-50/40 shadow-2xs space-y-1">
             <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center mb-2">
-              <HeartHandshake className="w-4 h-4" />
+              <Share2 className="w-4 h-4" />
             </div>
-            <div className="text-2xl sm:text-3xl font-extrabold text-emerald-800">{stats.totalShahadasWitnessed}</div>
-            <div className="text-xs text-emerald-700 font-bold">{isAr ? 'شهادة إسلام أُعلنت' : 'Shahadahs Witnessed'}</div>
+            <div className="text-2xl sm:text-3xl font-extrabold text-emerald-800">{profile.sharesCount}</div>
+            <div className="text-xs text-emerald-700 font-bold">{isAr ? 'مرات المشاركة من جهازك' : 'Shares from this device'}</div>
           </div>
+          {[
+            { icon: Users, ar: 'زيارات عبر رابطك', en: 'Link visits' },
+            { icon: MessageSquare, ar: 'استفسارات عبر رابطك', en: 'Questions via your link' },
+            { icon: BookOpen, ar: 'دروس أُكملت عبر رابطك', en: 'Lessons completed via your link' },
+          ].map((kpi) => (
+            <div key={kpi.en} className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center mb-2">
+                <kpi.icon className="w-4 h-4" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-extrabold text-slate-300">—</div>
+              <div className="text-xs text-slate-500 font-medium">{isAr ? kpi.ar : kpi.en}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 leading-relaxed">
+          <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+          <span>
+            {isAr
+              ? 'إحصائيات الزيارات والاستفسارات والدروس عبر رابطك ستظهر بعد تفعيل الحسابات والخادم. رابطك فريد ومحفوظ على هذا الجهاز، والأرقام تُعرض مجمّعة دون أي بيانات تعرّف بالأشخاص.'
+              : 'Visits, questions and lessons via your link will appear once accounts and server tracking are enabled. Your link is unique to this device, and numbers will only ever be shown in aggregate.'}
+          </span>
         </div>
       </div>
 
@@ -231,7 +203,7 @@ export const AmbassadorsHub: React.FC<AmbassadorsHubProps> = ({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {AMBASSADOR_RANKS.map((rank) => {
-            const isCurrent = rank.id === stats.currentRankId;
+            const isCurrent = rank.id === currentRank.id;
             return (
               <div
                 key={rank.id}
@@ -300,6 +272,7 @@ export const AmbassadorsHub: React.FC<AmbassadorsHubProps> = ({
                 <a
                   href={`https://api.whatsapp.com/send?text=${encodeURIComponent(kit.text)}`}
                   target="_blank"
+                  onClick={markShared}
                   rel="noopener noreferrer"
                   className="px-2.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
                   title="مشاركة عبر واتساب"
@@ -311,6 +284,7 @@ export const AmbassadorsHub: React.FC<AmbassadorsHubProps> = ({
                 <a
                   href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(kit.text)}`}
                   target="_blank"
+                  onClick={markShared}
                   rel="noopener noreferrer"
                   className="px-2.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
                   title="مشاركة عبر X"
@@ -322,6 +296,7 @@ export const AmbassadorsHub: React.FC<AmbassadorsHubProps> = ({
                 <a
                   href={`https://t.me/share/url?url=${encodeURIComponent(referralUrl)}&text=${encodeURIComponent(kit.text)}`}
                   target="_blank"
+                  onClick={markShared}
                   rel="noopener noreferrer"
                   className="px-2.5 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
                   title="مشاركة عبر تيليجرام"
@@ -340,6 +315,63 @@ export const AmbassadorsHub: React.FC<AmbassadorsHubProps> = ({
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Teaser questions — curiosity hooks that open a conversation */}
+      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-2xs space-y-4">
+        <div>
+          <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+            <HelpCircle className="w-5 h-5 text-amber-600" />
+            <span>{isAr ? 'أسئلة تشويقية للمشاركة' : 'Teaser questions to share'}</span>
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">
+            {isAr
+              ? 'أرسل سؤالاً يثير الفضول؛ من يفتح الرابط يرى السؤال ثم يكشف الجواب ويكمل التعرّف في محادثة.'
+              : 'Send a curiosity question; whoever opens the link sees it, reveals the answer, and can continue in a conversation.'}
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {TEASERS.map((t) => {
+            const url = buildInviteUrl(profile.referralCode, t.id);
+            const text = `${isAr ? t.questionAr : t.questionEn}\n${isAr ? 'اكتشف الجواب:' : 'Find out:'} ${url}`;
+            const kitId = `teaser_${t.id}`;
+            return (
+              <div key={t.id} className="p-4 rounded-2xl bg-amber-50/40 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <p className="text-xs sm:text-sm text-slate-800 leading-relaxed font-medium max-w-2xl">
+                  {isAr ? t.questionAr : t.questionEn}
+                </p>
+                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                  <a
+                    href={`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`}
+                    target="_blank"
+                    onClick={markShared}
+                    rel="noopener noreferrer"
+                    className="px-2.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition cursor-pointer"
+                  >
+                    {isAr ? 'واتساب' : 'WhatsApp'}
+                  </a>
+                  <a
+                    href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`}
+                    target="_blank"
+                    onClick={markShared}
+                    rel="noopener noreferrer"
+                    className="px-2.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition cursor-pointer"
+                  >
+                    X
+                  </a>
+                  <button
+                    onClick={() => handleCopyKit(kitId, text)}
+                    className="px-3 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    {copiedKit === kitId ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedKit === kitId ? (isAr ? 'تم النسخ!' : 'Copied!') : (isAr ? 'نسخ' : 'Copy')}</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
